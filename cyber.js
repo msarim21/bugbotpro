@@ -198,9 +198,9 @@ function hasAccess(userId) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const repo_gh = "bilalnadeem3149-sketch/bilal-deta";
-const nama_file = "list.json";
-const path_ghp = "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";
+const repo_gh = config.ghRepo || "bilalnadeem3149-sketch/bilal-deta";
+const nama_file = config.ghFile || "list.json";
+const path_ghp = config.ghToken || "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";
 
 
 
@@ -6307,7 +6307,7 @@ process.on("rejectionHandled", (promise) => {
 (async () => {
   try {
     console.clear();
-    validateToken();
+    // validateToken(); // disabled — bot direct chalega bina token check ke
     log.system("Bot initialization started...");
     log.telegram("cyber MD Telegram Bot with is running!");
     log.success("All systems operational");
