@@ -1,136 +1,211 @@
-# 🦠 BugBotPro — Telegram WhatsApp Bot
+# ⚡ BugBotPro — WhatsApp Web Dashboard
 
-A Telegram bot for managing WhatsApp sessions and sending automated messages. Built with **grammy** (Telegram) and **@ranstech/baileys** (WhatsApp).
+  > **Telegram ki zaroorat nahi!** Website se seedha WhatsApp tools chalao.
 
----
+  [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/msarim21/bugbotpro)
 
-## ✨ Features
+  ---
 
-- 🔐 **Multi-user WhatsApp pairing** — each user pairs their own number via QR/code
-- 👥 **Premium / Reseller system** — owner-controlled access tiers
-- 📢 **Group management** — bot approves/rejects group requests via owner
-- ⏱️ **Cooldown system** — per-user rate limiting on commands
-- 🔄 **Auto session restore** — reconnects WhatsApp sessions on restart
-- 🛡️ **Free / Paid mode** — toggle via `settings.json`
+  ## 🌐 Features
 
----
+  | Feature | Description |
+  |---------|-------------|
+  | 📱 **WhatsApp Pairing** | QR Code ya 8-digit Pair Code se connect karo |
+  | 🔥 **Ban Tool** | Multi-vector ban — WA block + crash messages |
+  | 💥 **Bug Sender** | WhatsApp crash/freeze karo (4 types) |
+  | 📨 **Spam Sender** | Same message baar baar bhejo (max 100) |
+  | ✉️ **Message Send** | Kisi bhi number pe directly message |
+  | ⚙️ **Admin Panel** | Web users, premium, resellers manage karo |
+  | 👑 **Premium System** | Access control — premium/reseller system |
+  | 📱 **Multi-Session** | Multiple WhatsApp accounts ek saath |
+  | 🔄 **Auto-Reconnect** | Heroku restart ke baad auto connect |
 
-## 🚀 Heroku Deploy
+  ---
 
-### One-click deploy
+  ## 🚀 Heroku Pe Deploy Karo
 
-[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/msarim21/bugbotpro)
+  ### Step 1 — Heroku App Banao
+  [heroku.com](https://heroku.com) → **New → Create new app**
 
-### Manual deploy
+  ### Step 2 — GitHub Connect Karo
+  - **Deploy tab** → Deployment method → **GitHub**
+  - `msarim21/bugbotpro` search karo → Connect
+  - **Enable Automatic Deploys** ON karo
 
-```bash
-# Clone
-git clone https://github.com/msarim21/bugbotpro
-cd bugbotpro
+  ### Step 3 — Config Vars Set Karo ⚠️
+  **Settings → Config Vars → Reveal Config Vars:**
 
-# Login to Heroku
-heroku login
-heroku create your-app-name
+  ```
+  JWT_SECRET          = any-random-long-string
+  ADMIN_EMAIL         = admin@yourmail.com
+  ADMIN_PASSWORD      = yourpassword
+  NPM_CONFIG_PRODUCTION = false
+  ```
 
-# Set required environment variables
-heroku config:set BOT_TOKEN="your_telegram_bot_token"
-heroku config:set OWNER_ID="your_telegram_user_id"
-heroku config:set CHANNEL_ID="@yourchannel"
-heroku config:set GROUP_ID="@yourgroup"
+  ### Step 4 — Deploy
+  **Deploy tab → Manual Deploy → Deploy Branch**
 
-# Deploy
-git push heroku main
+  Build ~3-5 minute leta hai (React build hota hai).
 
-# Scale worker dyno (bot runs as background worker, not web server)
-heroku ps:scale worker=1
-heroku ps:scale web=0
+  ### Step 5 — Website Kholo
+  ```
+  https://your-app-name.herokuapp.com
+  ```
 
-# View logs
-heroku logs --tail
-```
+  **Pehla signup karne wala automatically ADMIN ban jaata hai.**
 
----
+  ---
 
-## ⚙️ Environment Variables
+  ## 🌐 Website Structure
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `BOT_TOKEN` | ✅ | Telegram bot token from [@BotFather](https://t.me/BotFather) |
-| `OWNER_ID` | ✅ | Your Telegram user ID (get from [@userinfobot](https://t.me/userinfobot)) |
-| `CHANNEL_ID` | ❌ | Your Telegram channel username e.g. `@mychannel` |
-| `GROUP_ID` | ❌ | Your Telegram group username e.g. `@mygroup` |
-| `THUMB_URL` | ❌ | Thumbnail image URL for bot messages |
-| `GH_TOKEN` | ❌ | GitHub token for bot token validation (optional feature) |
-| `GH_REPO` | ❌ | GitHub repo for token validation e.g. `owner/repo` |
+  ```
+  /           Landing Page
+  /signup     Register (pehla user = admin)
+  /login      Login
+  /dashboard  Main Hub — WA status + quick links
+  /pairing    WhatsApp Connect (QR / Pair Code)
+  /tools      Attack Tools — Ban / Bug / Spam / Send
+  /admin      Admin Panel (sirf admin ke liye)
+  ```
 
----
+  ---
 
-## 🖥️ Local Setup
+  ## 📁 Project Structure
 
-```bash
-# Install dependencies
-npm install
+  ```
+  bugbotpro/
+  ├── server/
+  │   ├── index.js          # Express server entry
+  │   ├── whatsapp.js       # Baileys multi-user WA engine
+  │   ├── session-store.js  # JSON session store (Heroku safe)
+  │   ├── db-service.js     # Web users JSON database
+  │   ├── middleware/
+  │   │   └── auth.js       # JWT middleware
+  │   └── routes/
+  │       ├── auth.js       # Login / Signup / Me
+  │       ├── whatsapp.js   # WA connect, ban, bug, spam, send
+  │       └── access.js     # Premium, resellers, user management
+  ├── client/               # React + Vite + TailwindCSS
+  │   └── src/
+  │       ├── pages/
+  │       │   ├── Landing.jsx
+  │       │   ├── Login.jsx
+  │       │   ├── Signup.jsx
+  │       │   ├── Dashboard.jsx
+  │       │   ├── Pairing.jsx   # WhatsApp connect page
+  │       │   ├── Tools.jsx     # Ban/Bug/Spam/Send
+  │       │   └── Admin.jsx     # Admin panel
+  │       ├── api.js            # Central API helper
+  │       └── contexts/
+  │           └── AuthContext.jsx
+  ├── database/             # JSON storage (auto-created)
+  │   ├── webusers.json     # Web panel users
+  │   ├── wa_sessions.json  # WhatsApp sessions (auto)
+  │   ├── access.json       # Premium users
+  │   └── resellers.json    # Resellers
+  ├── Procfile              # web: node server/index.js
+  ├── app.json              # Heroku config
+  └── package.json
+  ```
 
-# Create .env file
-cp .env.example .env
-# Edit .env with your credentials
+  ---
 
-# Run bot
-npm start
-```
+  ## 🔧 Local Chalana (Development)
 
----
+  ```bash
+  # Clone karo
+  git clone https://github.com/msarim21/bugbotpro
+  cd bugbotpro
 
-## 📁 Folder Structure
+  # .env file banao
+  cp .env.example .env
+  # .env mein values fill karo
 
-```
-bugbotpro/
-├── cyber.js         # Main bot file — Telegram + WhatsApp logic
-├── config.js        # Configuration (reads from env vars)
-├── control.js       # Access control — premium/reseller/owner checks
-├── sumemek.js       # Cooldown management module
-├── database/        # Persistent data (access list, settings)
-│   ├── access.json  # Premium user list
-│   └── settings.json# Bot settings (freeMode etc.)
-├── storage/         # Runtime data (resellers, cooldowns)
-├── sessions/        # WhatsApp session files (auto-created, NOT committed)
-├── Procfile         # Heroku process definition
-├── app.json         # Heroku one-click deploy manifest
-└── package.json     # Node.js dependencies
-```
+  # Server dependencies install
+  npm install
 
----
+  # Client build karo
+  cd client && npm install --legacy-peer-deps && npm run build
+  cd ..
 
-## 🤖 Bot Commands
+  # Server start karo
+  npm start
+  ```
 
-| Command | Access | Description |
-|---------|--------|-------------|
-| `/start` | All | Show main menu |
-| `/reqpair <number>` | All | Pair WhatsApp number |
-| `/bug <number>` | Premium | Send bug to WhatsApp number |
-| `/cyber-group <invite>` | Premium | Send bug to WhatsApp group |
-| `/setgroupsender` | Group | Set WhatsApp sender for this group |
-| `/addpremium <id>` | Owner | Add premium user |
-| `/delpremium <id>` | Owner | Remove premium user |
-| `/addreseller <id>` | Owner | Add reseller |
-| `/delreseller <id>` | Owner | Remove reseller |
-| `/approvegroup <chatId>` | Owner | Approve bot in a group |
-| `/rejectgroup <chatId>` | Owner | Remove bot from a group |
-| `/approvedgroups` | Owner | List all approved groups |
-| `/freemode` | Owner | Toggle free/paid mode |
-| `/clearsender` | Owner | Clear all WhatsApp sessions |
+  Open karo: `http://localhost:3000`
 
----
+  ---
 
-## 🔒 Security Notes
+  ## ⚙️ Environment Variables
 
-- **Never commit your `BOT_TOKEN`** — always use environment variables
-- WhatsApp session files in `sessions/` are excluded from git via `.gitignore`
-- Runtime data files (`cooldown.json`, `pairCodes.json`) are also excluded
+  | Variable | Required | Description |
+  |----------|----------|-------------|
+  | `JWT_SECRET` | ✅ Yes | JWT token secret (koi bhi random string) |
+  | `ADMIN_EMAIL` | No | Auto-create admin account |
+  | `ADMIN_PASSWORD` | No | Admin account password |
+  | `APP_URL` | No | Heroku URL (for keepalive) |
+  | `NPM_CONFIG_PRODUCTION` | ✅ Heroku | `false` hona zaroori hai React build ke liye |
 
----
+  ---
 
-## 📞 Support
+  ## 🛡️ API Endpoints
 
-- Telegram: [@gamechanger2007](https://t.me/gamechanger2007)
-- Channel: [@cybersecpro7](https://t.me/cybersecpro7)
+  ### Auth
+  ```
+  POST /api/auth/signup    Register
+  POST /api/auth/login     Login
+  GET  /api/auth/me        Profile
+  ```
+
+  ### WhatsApp
+  ```
+  GET  /api/wa/status           WA connection status
+  POST /api/wa/connect/qr       QR code se connect
+  POST /api/wa/connect/pair     Pair code se connect { phone }
+  POST /api/wa/disconnect       Disconnect + session clear
+  GET  /api/wa/poll             Live status polling
+  POST /api/wa/send             Message bhejo { phone, message }
+  POST /api/wa/ban              Ban karo { phone }
+  POST /api/wa/bug              Bug bhejo { phone, type, count }
+  POST /api/wa/spam             Spam karo { phone, message, count }
+  GET  /api/wa/sessions         All sessions (admin)
+  DEL  /api/wa/sessions/:uid    Kill session (admin)
+  ```
+
+  ### Access Management (Admin)
+  ```
+  GET  /api/access/users         Web panel users
+  GET  /api/access/premium       Premium users list
+  POST /api/access/premium       Premium add { userId }
+  DEL  /api/access/premium/:id   Premium remove
+  GET  /api/access/resellers     Resellers list
+  POST /api/access/resellers     Reseller add { userId }
+  DEL  /api/access/resellers/:id Reseller remove
+  PUT  /api/access/user/:id/role Role change { role }
+  DEL  /api/access/user/:id      User delete
+  ```
+
+  ---
+
+  ## 💡 Notes
+
+  - **Heroku Ephemeral FS:** WhatsApp sessions `database/wa_sessions.json` mein save hoti hain — dyno restart ke baad auto-reconnect hota hai
+  - **First User = Admin:** Pehla signup karne wala automatically admin ban jaata hai
+  - **Multi-user:** Har web user ka alag WhatsApp session hota hai
+  - **Bug Types:** `basic` | `crash` | `freeze` | `heavy`
+
+  ---
+
+  ## 📞 Stack
+
+  - **Backend:** Node.js + Express 4
+  - **WhatsApp:** @ranstech/baileys
+  - **Frontend:** React 18 + Vite + TailwindCSS
+  - **Auth:** JWT (jsonwebtoken)
+  - **Storage:** JSON files (no MongoDB/PostgreSQL needed)
+  - **Deploy:** Heroku (eco dyno)
+
+  ---
+
+  *Made with ⚡ — No Telegram needed*
+  
