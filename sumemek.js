@@ -1,7 +1,10 @@
 const fs = require("fs");
 const path = require("path");
 
-const COOLDOWN_FILE = "./storage/cooldown1.json";
+// Support both ./storage/ layout and flat root layout
+const COOLDOWN_FILE = require("fs").existsSync("./storage/cooldown1.json")
+  ? "./storage/cooldown1.json"
+  : "./cooldown1.json";
 const COOLDOWN_DURATION = 20 * 60 * 1000;
 const COOLDOWN_COMMANDS = ["  ........  "];
 
