@@ -171,7 +171,7 @@ if (process.env.BOT_TOKEN_OVERRIDE) {
   config.telegramBotToken = process.env.BOT_TOKEN_OVERRIDE;
 }
 if (process.env.BOT_OWNER_OVERRIDE) {
-  config.ownerId = Number(process.env.BOT_OWNER_OVERRIDE);
+  config.ownerId = Number(process.env.BOT_OWNER_OVERRIDE) || config.ownerId;
 }
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -3241,7 +3241,7 @@ wa.me/8615507967005 for assistance`,
           if (!isOwner(ctx.from.id))
     return ctx.reply("❌ only owner!");
 
-          const cooldownModule = require("./controlSystem/sumemek.js");
+// cooldownModule already required above
           cooldownModule.enableCooldown();
 
           await ctx.reply(
@@ -3262,13 +3262,13 @@ wa.me/8615507967005 for assistance`,
       case "cdoff": {
         try {
           const userId = ctx.from.id.toString();
-          if (userId !== config.ownerId.toString()) {
+          if (String(userId) !== String(config.ownerId)) {
             return ctx.reply(
               "ONLY OWNER CAN USE THIS CMND."
             );
           }
 
-          const cooldownModule = require("./controlSystem/sumemek.js");
+// cooldownModule already required above
           cooldownModule.disableCooldown();
 
           await ctx.reply(
@@ -3285,7 +3285,7 @@ wa.me/8615507967005 for assistance`,
       case "setcd": {
         try {
           const userId = ctx.from.id.toString();
-          const cooldownModule = require("./controlSystem/sumemek.js");
+// cooldownModule already required above
 
           const isEnabled = cooldownModule.isCooldownEnabled();
           const userStatus = cooldownModule.getUserCooldownStatus(userId);
