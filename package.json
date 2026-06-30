@@ -1,21 +1,33 @@
 {
   "name": "bugbotpro",
   "version": "12.0.0",
-  "description": "BugBotPro — Telegram bot with WhatsApp multi-user session management",
+  "description": "BugBotPro — Telegram bot + Web Dashboard",
   "main": "cyber.js",
   "scripts": {
-    "start": "node cyber.js"
+    "start": "node server/index.js",
+    "bot": "node cyber.js",
+    "build": "npm install --legacy-peer-deps --prefix client && npm run build --prefix client",
+    "heroku-postbuild": "npm install --legacy-peer-deps --prefix client && npm run build --prefix client"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
     "@ranstech/baileys": "latest",
     "axios": "^1.6.8",
-    "jimp": "^1.6.1",
-    "pino": "^8.15.1",
+    "bcryptjs": "^2.4.3",
+    "chalk": "^4.1.2",
+    "compression": "^1.7.4",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.3.1",
     "grammy": "^1.38.3",
-    "chalk": "^4.1.2"
+    "jimp": "^1.6.1",
+    "jsonwebtoken": "^9.0.2",
+    "pino": "^8.15.1",
+    "uuid": "^10.0.0"
   }
 }
