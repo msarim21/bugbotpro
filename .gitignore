@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Session data (WhatsApp sessions — ephemeral, never commit)
+sessions/
+nexstore/
+*.session
+
+# Environment secrets
+.env
+.env.*
+
+# Heroku
+.heroku/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Runtime JSON state files (reset on each deploy — use DB for persistence)
+storage/cooldown.json
+storage/cooldown1.json
+storage/pairCodes.json
+cooldown.json
+cooldown1.json
+pairCodes.json
+
+# OS files
+.DS_Store
+Thumbs.db
