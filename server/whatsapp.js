@@ -1,41 +1,56 @@
 'use strict';
-  const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeInMemoryStore } = require('@ranstech/baileys');
+  const {
+    default: makeWASocket,
+    DisconnectReason,
+    fetchLatestBaileysVersion,
+    initAuthCreds,
+    BufferJSON,
+  } = require('@ranstech/baileys');
   const { Boom } = require('@hapi/boom');
   const pino = require('pino');
-  const path = require('path');
-  const fs = require('fs');
+  const { useJsonAuthState, listStoredSessions } = require('./session-store');
 
   const logger = pino({ level: 'silent' });
-  const SESSION_DIR = path.join(process.cwd(), 'database', 'sessions');
-  if (!fs.existsSync(SESSION_DIR)) fs.mkdirSync(SESSION_DIR, { recursive: true });
 
-  // In-memory WA clients map: userId -> { sock, status, qr, pairCode, phone }
+  // In-memory map: userId -> { sock, status, qr, pairCode, phone }
   const waClients = {};
-
-  function getSessionPath(userId) {
-    return path.join(SESSION_DIR, `user_${userId}`);
-  }
 
   function getStatus(userId) {
     const c = waClients[userId];
-    if (!c) return { connected: false, status: 'disconnected', phone: null };
-    return { connected: c.status === 'open', status: c.status || 'connecting', phone: c.phone || null, qr: c.qr || null, pairCode: c.pairCode || null };
+    if (!c) return { connected: false, status: 'disconnected', phone: null, qr: null, pairCode: null };
+    return {
+      connected: c.status === 'open',
+      status: c.status || 'connecting',
+      phone: c.phone || null,
+      qr: c.qr || null,
+      pairCode: c.pairCode || null,
+      pairCodeError: c.pairCodeError || null,
+    };
   }
 
   function getAllSessions() {
     return Object.entries(waClients).map(([uid, c]) => ({
-      userId: uid, status: c.status, phone: c.phone, connected: c.status === 'open'
+      userId: uid, status: c.status, phone: c.phone, connected: c.status === 'open',
     }));
   }
 
   async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
-    // Disconnect existing
+    // Disconnect existing sock if any
     if (waClients[userId]?.sock) {
-      try { waClients[userId].sock.end(); } catch(_) {}
+      try { waClients[userId].sock.end(); } catch (_) {}
     }
 
-    const sessionPath = getSessionPath(userId);
-    const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+    const { state, saveCreds, clearSession, hasExistingSession } = useJsonAuthState(userId);
+
+    // If no stored session, initialize fresh creds
+    if (!state.creds || !state.creds.noiseKey) {
+      try {
+        const freshCreds = initAuthCreds();
+        state.creds = freshCreds;
+        await saveCreds();
+      } catch (_) {}
+    }
+
     const { version } = await fetchLatestBaileysVersion();
 
     const sock = makeWASocket({
@@ -46,44 +61,63 @@
       browser: ['BugBotPro', 'Chrome', '120.0'],
       connectTimeoutMs: 60000,
       defaultQueryTimeoutMs: 30000,
+      generateHighQualityLinkPreview: false,
     });
 
-    waClients[userId] = { sock, status: 'connecting', phone, qr: null, pairCode: null };
+    waClients[userId] = { sock, status: 'connecting', phone, qr: null, pairCode: null, pairCodeError: null };
 
-    // Pair code mode
-    if (usePairCode && phone && !sock.authState.creds.registered) {
-      await new Promise(r => setTimeout(r, 1500));
-      try {
-        const code = await sock.requestPairingCode(phone.replace(/[^0-9]/g, ''));
-        waClients[userId].pairCode = code;
-      } catch(e) {
-        waClients[userId].pairCode = null;
-        waClients[userId].pairCodeError = e.message;
-      }
+    // Pair code mode — request after socket is ready
+    if (usePairCode && phone && !hasExistingSession()) {
+      setTimeout(async () => {
+        try {
+          const cleanPhone = String(phone).replace(/[^0-9]/g, '');
+          const code = await sock.requestPairingCode(cleanPhone);
+          if (waClients[userId]) {
+            waClients[userId].pairCode = code;
+            waClients[userId].pairCodeError = null;
+          }
+        } catch (e) {
+          if (waClients[userId]) waClients[userId].pairCodeError = e.message;
+        }
+      }, 2000);
     }
 
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
+      if (!waClients[userId]) return;
+
       if (qr) {
         waClients[userId].qr = qr;
         waClients[userId].status = 'qr';
       }
+
       if (connection === 'open') {
         waClients[userId].status = 'open';
         waClients[userId].qr = null;
         waClients[userId].pairCode = null;
         const jid = sock.user?.id || '';
         waClients[userId].phone = jid.split(':')[0].split('@')[0];
+        console.log('[WA] Connected:', userId, waClients[userId].phone);
       }
+
       if (connection === 'close') {
-        const code = lastDisconnect?.error ? new Boom(lastDisconnect.error).output?.statusCode : 0;
-        const shouldReconnect = code !== DisconnectReason.loggedOut;
-        waClients[userId].status = 'disconnected';
-        if (shouldReconnect) {
-          setTimeout(() => connectUser(userId, { usePairCode: false }), 3000);
-        } else {
+        const statusCode = lastDisconnect?.error
+          ? new Boom(lastDisconnect.error).output?.statusCode : 0;
+        const loggedOut = statusCode === DisconnectReason.loggedOut;
+
+        if (loggedOut) {
+          clearSession();
           delete waClients[userId];
+          console.log('[WA] Logged out, session cleared:', userId);
+        } else {
+          if (waClients[userId]) waClients[userId].status = 'reconnecting';
+          console.log('[WA] Disconnected, reconnecting in 5s:', userId);
+          setTimeout(() => {
+            if (!waClients[userId] || waClients[userId].status === 'reconnecting') {
+              connectUser(userId, { usePairCode: false });
+            }
+          }, 5000);
         }
       }
     });
@@ -93,18 +127,20 @@
 
   function disconnectUser(userId) {
     if (waClients[userId]?.sock) {
-      try { waClients[userId].sock.end(); } catch(_) {}
-      delete waClients[userId];
+      try { waClients[userId].sock.end(); } catch (_) {}
     }
-    // Clear session files
-    const sessionPath = getSessionPath(userId);
-    if (fs.existsSync(sessionPath)) fs.rmSync(sessionPath, { recursive: true, force: true });
+    delete waClients[userId];
+
+    // Clear stored session
+    const { clearSession } = useJsonAuthState(userId);
+    clearSession();
+    console.log('[WA] Session cleared for:', userId);
   }
 
   async function sendWAMessage(userId, jid, content) {
     const c = waClients[userId];
     if (!c || c.status !== 'open') throw new Error('WhatsApp not connected');
-    await c.sock.sendMessage(jid, content);
+    return await c.sock.sendMessage(jid, content);
   }
 
   async function blockJid(userId, jid) {
@@ -113,25 +149,22 @@
     await c.sock.updateBlockStatus(jid, 'block');
   }
 
-  async function reportJid(userId, jid) {
-    const c = waClients[userId];
-    if (!c || c.status !== 'open') throw new Error('WhatsApp not connected');
-    await c.sock.sendMessage(jid, { text: 'report' });
-  }
-
-  // Auto-reconnect existing sessions on startup
+  // Restore all saved sessions on server startup
   async function restoreAllSessions() {
-    if (!fs.existsSync(SESSION_DIR)) return;
-    const dirs = fs.readdirSync(SESSION_DIR).filter(d => d.startsWith('user_'));
-    for (const dir of dirs) {
-      const userId = dir.replace('user_', '');
+    const userIds = listStoredSessions();
+    console.log('[WA] Restoring', userIds.length, 'saved sessions...');
+    for (const uid of userIds) {
       try {
-        await connectUser(userId, { usePairCode: false });
-      } catch(e) {
-        console.error('[WA] Failed to restore session for', userId, e.message);
+        await connectUser(uid, { usePairCode: false });
+        await new Promise(r => setTimeout(r, 2000)); // stagger connections
+      } catch (e) {
+        console.error('[WA] Restore failed for', uid, e.message);
       }
     }
   }
 
-  module.exports = { connectUser, disconnectUser, sendWAMessage, blockJid, reportJid, getStatus, getAllSessions, restoreAllSessions, waClients };
+  module.exports = {
+    connectUser, disconnectUser, sendWAMessage, blockJid,
+    getStatus, getAllSessions, restoreAllSessions, waClients,
+  };
   
