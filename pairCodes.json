@@ -1,0 +1,10 @@
+{
+  "example_user_id": {
+    "phone": "923001234567",
+    "pairCode": "BILAL786",
+    "createdAt": "2026-06-21T10:00:00.000Z",
+    "expires": false,
+    "status": "connected",
+    "connectedAt": "2026-06-21T10:02:00.000Z"
+  }
+}

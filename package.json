@@ -1,0 +1,21 @@
+{
+  "name": "CYBER BY GAMECHANGER",
+  "version": "12.0.0",
+  "description": "CYBER BY GAMECHANGER",
+  "main": "cyber.js",
+  "scripts": {
+    "start": "node cyber.js"
+  },
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@ranstech/baileys": "latest",
+    "axios": "^1.6.8",
+    "crypto": "latest",
+    "fs": "latest",
+    "jimp": "^1.6.1",
+    "pino": "^8.15.1",
+    "grammy": "^1.38.3",
+    "child_process": "^1.0.2",
+    "chalk": "^4.1.2"
+  }
+}
