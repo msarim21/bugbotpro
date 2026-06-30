@@ -8,8 +8,7 @@
       "heroku-postbuild": "npm install --legacy-peer-deps --prefix client && npm run build --prefix client"
     },
     "engines": {
-      "node": "20.x",
-      "npm": "10.x"
+      "node": "18.x"
     },
     "dependencies": {
       "@hapi/boom": "^10.0.1",
