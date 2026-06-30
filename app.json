@@ -1,0 +1,52 @@
+{
+  "name": "BugBotPro",
+  "description": "Telegram bot with WhatsApp multi-user session management",
+  "keywords": [
+    "telegram",
+    "whatsapp",
+    "bot",
+    "nodejs"
+  ],
+  "repository": "https://github.com/msarim21/bugbotpro",
+  "env": {
+    "BOT_TOKEN": {
+      "description": "Telegram Bot Token from @BotFather",
+      "required": true
+    },
+    "OWNER_ID": {
+      "description": "Your Telegram user ID (get from @userinfobot)",
+      "required": true
+    },
+    "CHANNEL_ID": {
+      "description": "Telegram channel username e.g. @mychannel",
+      "value": "@cybersecpro7"
+    },
+    "GROUP_ID": {
+      "description": "Telegram group username e.g. @mygroup",
+      "value": "@cybersecpro4"
+    },
+    "THUMB_URL": {
+      "description": "Thumbnail image URL for bot messages",
+      "value": "https://img.sanishtech.com/u/fd183ca273698d04dacfd39a1d610c97.jpg"
+    },
+    "GH_TOKEN": {
+      "description": "GitHub Personal Access Token for token validation (optional)",
+      "required": false
+    },
+    "GH_REPO": {
+      "description": "GitHub repo for token validation e.g. owner/repo (optional)",
+      "required": false
+    }
+  },
+  "formation": {
+    "worker": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ]
+}
