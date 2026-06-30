@@ -38,7 +38,9 @@
     db.users.push(user); saveDB(db); return user;
   }
 
+  // getAllUsers and findAllUsers — same function, both exported
   function getAllUsers() { return loadDB().users.map(({ password, ...u }) => u); }
+  const findAllUsers = getAllUsers;
 
   function updateUser(id, updates) {
     const db = loadDB();
@@ -65,5 +67,8 @@
     console.log('[DB] Admin created:', adminEmail);
   }
 
-  module.exports = { findUserById, findUserByEmail, findUserByEmailOrUsername, createUser, getAllUsers, updateUser, deleteUser, ensureAdminExists };
+  module.exports = {
+    findUserById, findUserByEmail, findUserByEmailOrUsername,
+    createUser, getAllUsers, findAllUsers, updateUser, deleteUser, ensureAdminExists
+  };
   
