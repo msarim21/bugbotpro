@@ -5,27 +5,20 @@
     "repository": "https://github.com/msarim21/bugbotpro",
     "env": {
       "JWT_SECRET": {
-        "description": "Auto-generated secret for JWT tokens",
+        "description": "Secret key for login sessions (auto-generated)",
         "generator": "secret"
       },
+      "NPM_CONFIG_PRODUCTION": {
+        "description": "Set false so React frontend builds on Heroku",
+        "value": "false"
+      },
       "ADMIN_EMAIL": {
-        "description": "Your admin email for first login (optional)",
-        "required": false,
-        "value": ""
+        "description": "Admin login email — pehla signup account (optional)",
+        "required": false
       },
       "ADMIN_PASSWORD": {
-        "description": "Your admin password (optional)",
-        "required": false,
-        "value": ""
-      },
-      "APP_URL": {
-        "description": "Your Heroku app URL e.g. https://my-app.herokuapp.com (optional)",
-        "required": false,
-        "value": ""
-      },
-      "NPM_CONFIG_PRODUCTION": {
-        "description": "Must be false so React client builds correctly",
-        "value": "false"
+        "description": "Admin login password (optional)",
+        "required": false
       }
     },
     "formation": {
