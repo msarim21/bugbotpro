@@ -17,10 +17,6 @@
       "description": "Your Telegram user ID (get from @userinfobot)",
       "required": true
     },
-    "APP_URL": {
-      "description": "Your Heroku app URL e.g. https://your-app.herokuapp.com — used for self-ping to keep dyno awake",
-      "required": false
-    },
     "CHANNEL_ID": {
       "description": "Telegram channel username e.g. @mychannel",
       "value": "@cybersecpro7"
@@ -43,9 +39,9 @@
     }
   },
   "formation": {
-    "web": {
+    "worker": {
       "quantity": 1,
-      "size": "eco"
+      "size": "basic"
     }
   },
   "buildpacks": [
