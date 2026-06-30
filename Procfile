@@ -1,1 +1,1 @@
-worker: node cyber.js
+web: node server.js
