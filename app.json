@@ -1,7 +1,12 @@
 {
   "name": "BugBotPro",
-  "description": "Telegram bot with WhatsApp multi-user session management",
-  "keywords": ["telegram", "whatsapp", "bot", "nodejs"],
+  "description": "Telegram bot with WhatsApp multi-user session management + Web Dashboard",
+  "keywords": [
+    "telegram",
+    "whatsapp",
+    "bot",
+    "nodejs"
+  ],
   "repository": "https://github.com/msarim21/bugbotpro",
   "env": {
     "BOT_TOKEN": {
@@ -21,19 +26,43 @@
       "value": "@cybersecpro4"
     },
     "THUMB_URL": {
-      "description": "Thumbnail image URL for bot messages",
+      "description": "Thumbnail image URL",
       "value": "https://img.sanishtech.com/u/fd183ca273698d04dacfd39a1d610c97.jpg"
     },
+    "JWT_SECRET": {
+      "description": "Secret key for web panel JWT tokens",
+      "generator": "secret"
+    },
+    "ADMIN_EMAIL": {
+      "description": "Admin email for web panel login",
+      "required": false
+    },
+    "ADMIN_PASSWORD": {
+      "description": "Admin password for web panel login",
+      "required": false
+    },
+    "APP_URL": {
+      "description": "Your Heroku app URL for keepalive e.g. https://your-app.herokuapp.com",
+      "required": false
+    },
     "GH_TOKEN": {
-      "description": "GitHub Personal Access Token for token validation (optional)",
+      "description": "GitHub Personal Access Token (optional)",
       "required": false
     },
     "GH_REPO": {
-      "description": "GitHub repo for token validation e.g. owner/repo (optional)",
+      "description": "GitHub repo for token validation (optional)",
       "required": false
+    },
+    "NPM_CONFIG_PRODUCTION": {
+      "description": "Must be false so devDependencies install for React build",
+      "value": "false"
     }
   },
   "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "eco"
+    },
     "worker": {
       "quantity": 1,
       "size": "eco"
@@ -43,5 +72,9 @@
     {
       "url": "heroku/nodejs"
     }
-  ]
+  ],
+  "scripts": {
+    "postdeploy": "echo BugBotPro deployed"
+  },
+  "stack": "heroku-24"
 }
