@@ -1,1 +1,2 @@
-worker: node cyber.js
+web: node server/index.js
+  worker: node cyber.js
