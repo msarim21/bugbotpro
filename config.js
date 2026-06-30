@@ -1,6 +1,6 @@
 module.exports = {
-    ownerId: 7615067790,//change your id telegram 
-    telegramBotToken: "8073848095:AAEbd6n330rMlzwZnt09l73LTMqGxPi0WMc",///the bot is being administered in your channel
+    ownerId:7783413625 ,//change your id telegram 
+    telegramBotToken: "8626172847:AAG0OFNVvTMi02AAhKwZM0vUfC8jXGLTYTM",///the bot is being administered in your channel
     sessionName: "session",
     chanelid: "@cybersecpro7",///change your username channel 
     chatgrupid: "@cybersecpro4",///change your grup public,do not grup private 
