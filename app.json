@@ -1,27 +1,30 @@
 {
     "name": "BugBotPro",
-    "description": "WhatsApp tools web dashboard — no Telegram needed",
+    "description": "WhatsApp Web Dashboard — no Telegram needed",
     "keywords": ["whatsapp", "dashboard", "nodejs"],
     "repository": "https://github.com/msarim21/bugbotpro",
     "env": {
       "JWT_SECRET": {
-        "description": "Secret key for web panel JWT tokens",
+        "description": "Auto-generated secret for JWT tokens",
         "generator": "secret"
       },
       "ADMIN_EMAIL": {
-        "description": "Admin email for first login",
-        "required": false
+        "description": "Your admin email for first login (optional)",
+        "required": false,
+        "value": ""
       },
       "ADMIN_PASSWORD": {
-        "description": "Admin password for first login",
-        "required": false
+        "description": "Your admin password (optional)",
+        "required": false,
+        "value": ""
       },
       "APP_URL": {
-        "description": "Your Heroku app URL for keepalive",
-        "required": false
+        "description": "Your Heroku app URL e.g. https://my-app.herokuapp.com (optional)",
+        "required": false,
+        "value": ""
       },
       "NPM_CONFIG_PRODUCTION": {
-        "description": "Must be false so devDependencies install for React build",
+        "description": "Must be false so React client builds correctly",
         "value": "false"
       }
     },
@@ -31,8 +34,11 @@
         "size": "eco"
       }
     },
-    "buildpacks": [{"url": "heroku/nodejs"}],
-    "scripts": {"postdeploy": "echo BugBotPro deployed"},
+    "buildpacks": [
+      {
+        "url": "heroku/nodejs"
+      }
+    ],
     "stack": "heroku-24"
   }
   
