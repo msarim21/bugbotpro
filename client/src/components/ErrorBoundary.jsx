@@ -1,26 +1,19 @@
 import React from 'react';
 
   export default class ErrorBoundary extends React.Component {
-    constructor(props) {
-      super(props);
-      this.state = { hasError: false, error: null };
-    }
-    static getDerivedStateFromError(error) {
-      return { hasError: true, error };
-    }
-    componentDidCatch(error, info) {
-      console.error('React Error:', error, info);
-    }
-    render() {
-      if (this.state.hasError) {
-        return (
-          <div style={{background:'#0a0f1e',color:'#f87171',padding:40,minHeight:'100vh',fontFamily:'monospace'}}>
-            <h1>⚠️ App Crash</h1>
-            <pre style={{whiteSpace:'pre-wrap',background:'rgba(0,0,0,0.5)',padding:20,borderRadius:8}}>
-              {this.state.error?.toString?.() || 'Unknown error'}
-            </pre>
-            <p style={{color:'#94a3b8'}}>Browser console check karo (F12 → Console)</p>
-          </div>
+    constructor(props) { super(props); this.state={hasError:false,error:null}; }
+    static getDerivedStateFromError(e){return{hasError:true,error:e};}
+    componentDidCatch(e,i){console.error('[ERROR BOUNDARY]',e,i);}
+    render(){
+      if(this.state.hasError){
+        return React.createElement('div',{
+          style:{padding:'40px 20px',background:'#0a0f1e',color:'#f87171',fontFamily:'monospace',minHeight:'100vh',textAlign:'center'}
+        },
+          React.createElement('h1',null,'⚠️ APP CRASH'),
+          React.createElement('pre',{
+            style:{background:'rgba(0,0,0,0.5)',padding:'20px',borderRadius:'8px',whiteSpace:'pre-wrap',textAlign:'left',maxWidth:'800px',margin:'20px auto'}
+          }, this.state.error?.toString?.() || 'Unknown'),
+          React.createElement('p',{style:{color:'#94a3b8'}},'Browser console mein F12 → Console check karo')
         );
       }
       return this.props.children;
