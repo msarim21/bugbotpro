@@ -4,24 +4,24 @@ import React, { useState } from 'react';
   import toast from 'react-hot-toast';
 
   export default function Signup() {
-    const { signup } = useAuth();
-    const nav = useNavigate();
     const [form, setForm] = useState({ username: '', email: '', password: '' });
     const [loading, setLoading] = useState(false);
+    const { signup } = useAuth();
+    const navigate = useNavigate();
 
-    async function handleSubmit(e) {
+    const handleSubmit = async (e) => {
       e.preventDefault();
       setLoading(true);
       try {
-        await signup(form.username, form.email, form.password);
-        toast.success('Account ban gaya!');
-        nav('/dashboard');
+        const user = await signup(form.username, form.email, form.password);
+        toast.success('Account created!');
+        navigate(user.role === 'admin' ? '/admin' : '/dashboard');
       } catch (err) {
-        toast.error(err.message || 'Signup failed');
+        toast.error(err.message || 'Signup failed.');
       } finally {
         setLoading(false);
       }
-    }
+    };
 
     return (
       <div className="min-h-screen bg-[#0a0f1e] flex items-center justify-center px-4">
