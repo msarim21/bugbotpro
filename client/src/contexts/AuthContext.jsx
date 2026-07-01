@@ -1,32 +1,33 @@
-'use strict';
-  import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
   const AuthContext = createContext(null);
-  const API = '/api';
-
-  function getToken() { return localStorage.getItem('bbp_token'); }
-
-  async function apiReq(method, path, body) {
-    const opts = { method, headers: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) } };
-    if (body) opts.body = JSON.stringify(body);
-    const res = await fetch(API + path, opts);
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
-    return data;
-  }
 
   export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    const getToken = () => localStorage.getItem('bbp_token');
+
     useEffect(() => {
       const token = getToken();
       if (!token) { setLoading(false); return; }
-      apiReq('GET', '/auth/me')
+      fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + token } })
+        .then(r => r.ok ? r.json() : Promise.reject())
         .then(d => setUser(d.user))
         .catch(() => localStorage.removeItem('bbp_token'))
         .finally(() => setLoading(false));
     }, []);
+
+    const apiReq = async (method, path, body) => {
+      const opts = { method, headers: { 'Content-Type': 'application/json' } };
+      const t = getToken();
+      if (t) opts.headers.Authorization = 'Bearer ' + t;
+      if (body) opts.body = JSON.stringify(body);
+      const r = await fetch('/api' + path, opts);
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || d.message || 'HTTP ' + r.status);
+      return d;
+    };
 
     const login = async (email, password) => {
       const data = await apiReq('POST', '/auth/login', { email, password });
