@@ -4,7 +4,6 @@ const {
   DisconnectReason,
   fetchLatestBaileysVersion,
   initAuthCreds,
-  BufferJSON,
 } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const pino = require('pino');
@@ -12,7 +11,6 @@ const { useJsonAuthState, listStoredSessions } = require('./session-store');
 
 const logger = pino({ level: 'silent' });
 
-// In-memory map: userId -> { sock, status, qr, pairCode, pairCodeError, phone }
 const waClients = {};
 
 function getStatus(userId) {
@@ -35,7 +33,6 @@ function getAllSessions() {
 }
 
 async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
-  // Disconnect existing sock if any
   if (waClients[userId]?.sock) {
     try { waClients[userId].sock.end(); } catch (_) {}
     delete waClients[userId];
@@ -43,7 +40,6 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
 
   const { state, saveCreds, clearSession, hasExistingSession } = useJsonAuthState(userId);
 
-  // Initialize fresh creds if none stored
   if (!state.creds || !state.creds.noiseKey) {
     try {
       state.creds = initAuthCreds();
@@ -60,7 +56,7 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
     printQRInTerminal: false,
     browser: ['BugBotPro', 'Chrome', '122.0'],
     connectTimeoutMs: 60000,
-    defaultQueryTimeoutMs: 30000,
+    defaultQueryTimeoutMs: 60000,
     generateHighQualityLinkPreview: false,
     markOnlineOnConnect: false,
   });
@@ -68,57 +64,57 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
   waClients[userId] = {
     sock,
     status: 'connecting',
-    phone: phone || null,
+    phone: null,
     qr: null,
     pairCode: null,
     pairCodeError: null,
   };
 
-  // Pair code mode: request code right away, before QR is generated
+  // ─── PAIR CODE ───────────────────────────────────────────────────────────────
+  // Must be called right after makeWASocket — Baileys internally waits for the
+  // WA-server handshake before sending the pair-code IQ, so no setTimeout needed.
+  // This is the ONLY correct place to call it; calling it inside connection.update
+  // is too late and the request races against the QR exchange.
   if (usePairCode && phone && !hasExistingSession()) {
     const cleanPhone = String(phone).replace(/[^0-9]/g, '');
-    // Baileys needs a brief moment to initialize before requestPairingCode
-    let pairRequested = false;
-    const requestCode = async () => {
-      if (pairRequested || !waClients[userId]) return;
-      pairRequested = true;
-      try {
-        const code = await sock.requestPairingCode(cleanPhone);
+    console.log('[WA] Requesting pair code for phone:', cleanPhone, 'userId:', userId);
+
+    sock.requestPairingCode(cleanPhone)
+      .then(code => {
         if (waClients[userId]) {
           waClients[userId].pairCode = code;
           waClients[userId].pairCodeError = null;
-          console.log('[WA] Pair code generated for', userId, ':', code);
+          console.log('[WA] Pair code generated:', code, 'for userId:', userId);
         }
-      } catch (e) {
-        console.error('[WA] Pair code error for', userId, ':', e.message);
+      })
+      .catch(err => {
+        console.error('[WA] Pair code failed for', userId, ':', err.message);
         if (waClients[userId]) {
-          waClients[userId].pairCodeError = e.message;
+          waClients[userId].pairCodeError = err.message;
         }
-      }
-    };
-
-    // Try immediately, then retry after 1.5s and 4s as fallback
-    setTimeout(requestCode, 1500);
-    setTimeout(requestCode, 4000);
+      });
   }
+  // ─────────────────────────────────────────────────────────────────────────────
 
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
-    if (!waClients[userId]) return;
+    const client = waClients[userId];
+    if (!client) return;
 
-    if (qr) {
-      waClients[userId].qr = qr;
-      waClients[userId].status = 'qr';
+    // In pair-code mode we never display the QR — just keep status as 'connecting'
+    if (qr && !usePairCode) {
+      client.qr = qr;
+      client.status = 'qr';
     }
 
     if (connection === 'open') {
-      waClients[userId].status = 'open';
-      waClients[userId].qr = null;
-      waClients[userId].pairCode = null;
+      client.status = 'open';
+      client.qr = null;
+      client.pairCode = null;
       const jid = sock.user?.id || '';
-      waClients[userId].phone = jid.split(':')[0].split('@')[0];
-      console.log('[WA] Connected:', userId, waClients[userId].phone);
+      client.phone = jid.split(':')[0].split('@')[0];
+      console.log('[WA] Connected:', userId, client.phone);
     }
 
     if (connection === 'close') {
@@ -131,10 +127,10 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
         delete waClients[userId];
         console.log('[WA] Logged out, session cleared:', userId);
       } else {
-        if (waClients[userId]) waClients[userId].status = 'reconnecting';
-        console.log('[WA] Disconnected, reconnecting in 5s:', userId);
+        client.status = 'reconnecting';
+        console.log('[WA] Disconnected (code', statusCode, '), retrying in 5s for:', userId);
         setTimeout(() => {
-          if (waClients[userId] && waClients[userId].status === 'reconnecting') {
+          if (waClients[userId]?.status === 'reconnecting') {
             connectUser(userId, { usePairCode: false });
           }
         }, 5000);
@@ -167,7 +163,6 @@ async function blockJid(userId, jid) {
   await c.sock.updateBlockStatus(jid, 'block');
 }
 
-// Restore all saved sessions on server startup
 async function restoreAllSessions() {
   const userIds = listStoredSessions();
   console.log('[WA] Restoring', userIds.length, 'saved sessions...');
