@@ -10,6 +10,9 @@
   const app = express();
   const PORT = process.env.PORT || 3000;
 
+  // Heroku / proxy support — MUST be before rate-limit
+  app.set('trust proxy', 1);
+
   process.on('uncaughtException', err => console.error('[CRASH]', err.message, err.stack));
   process.on('unhandledRejection', r => console.error('[REJECT]', r));
 
@@ -18,7 +21,13 @@
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true }));
 
-  const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false });
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => req.ip
+  });
   app.use('/api/', apiLimiter);
 
   // Routes
@@ -49,7 +58,7 @@
   @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
   p{font-size:14px;opacity:.6}
   </style></head><body>
-  <div class="loader"><h1>⚡ BugBotPro</h1><div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div><p>Starting up... dyno is waking up ⏰</p><p><small>Heroku Eco — first load may take 10-15 seconds</small></p></div>
+  <div class="loader"><h1>⚡ BugBotPro</h1><div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div><p>Starting up... please wait</p></div>
   </body></html>`));
   }
 
@@ -59,15 +68,6 @@
   // Restore WA sessions
   const wa = require('./whatsapp');
   wa.restoreAllSessions().catch(e => console.error('[WA] Restore error:', e.message));
-
-  // ─── Keep Alive: ping self every 10 min to prevent Eco dyno sleep ───
-  const APP_URL = process.env.APP_URL || (process.env.HEROKU_APP_NAME ? `https://${process.env.HEROKU_APP_NAME}.herokuapp.com` : null);
-  if (APP_URL) {
-    setInterval(() => {
-      fetch(`${APP_URL}/api/health`).then(() => console.log('[KEEPALIVE] Ping sent')).catch(() => {});
-    }, 10 * 60 * 1000); // every 10 minutes
-    console.log('[KEEPALIVE] Auto-ping enabled:', APP_URL);
-  }
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[SERVER] BugBotPro Web Panel running on port ${PORT}`);
