@@ -6,21 +6,19 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    const getToken = () => localStorage.getItem('bbp_token');
-
     useEffect(() => {
-      const token = getToken();
+      const token = localStorage.getItem('bbp_token');
       if (!token) { setLoading(false); return; }
       fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + token } })
         .then(r => r.ok ? r.json() : Promise.reject())
-        .then(d => setUser(d.user))
-        .catch(() => localStorage.removeItem('bbp_token'))
+        .then(d => { if (d.user) setUser(d.user); })
+        .catch(() => { localStorage.removeItem('bbp_token'); })
         .finally(() => setLoading(false));
     }, []);
 
     const apiReq = async (method, path, body) => {
       const opts = { method, headers: { 'Content-Type': 'application/json' } };
-      const t = getToken();
+      const t = localStorage.getItem('bbp_token');
       if (t) opts.headers.Authorization = 'Bearer ' + t;
       if (body) opts.body = JSON.stringify(body);
       const r = await fetch('/api' + path, opts);
