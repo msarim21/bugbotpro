@@ -27,6 +27,7 @@
   app.use('/api/dashboard', require('./routes/dashboard'));
   app.use('/api/wa', require('./routes/whatsapp'));
   app.use('/api/access', require('./routes/access'));
+  app.use('/api/log-client-error', require('./routes/client-error'));
   app.get('/api/health', (_, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 
   // Serve React build
