@@ -4,6 +4,7 @@ const {
   DisconnectReason,
   fetchLatestBaileysVersion,
   initAuthCreds,
+  Browsers,
 } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const pino = require('pino');
@@ -32,7 +33,7 @@ function getAllSessions() {
 }
 
 async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
-  // Kill existing socket
+  // Kill any existing socket
   if (waClients[userId]?.sock) {
     try { waClients[userId].sock.end(); } catch (_) {}
     delete waClients[userId];
@@ -40,8 +41,8 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
 
   const { state, saveCreds, clearSession } = useJsonAuthState(userId);
 
-  // If requesting a pair code — always start with a clean session
-  // so Baileys never sees a stale creds.registered = true
+  // Pair code always starts with a clean slate so creds.registered is never
+  // left over from a previous failed attempt (which would make requestPairingCode throw).
   if (usePairCode && phone) {
     clearSession();
     state.creds = initAuthCreds();
@@ -51,28 +52,25 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
     await saveCreds();
   }
 
-  // Fetch WA version with fallback so Heroku network timeouts don't block startup
-  let version;
-  try {
-    const result = await Promise.race([
-      fetchLatestBaileysVersion(),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('version fetch timeout')), 8000)),
-    ]);
-    version = result.version;
-  } catch (_) {
-    version = [2, 3000, 1015920675]; // safe fallback
-  }
+  // fetchLatestBaileysVersion already falls back to a bundled safe version on
+  // network failure — do NOT add a custom timeout+fallback here, because a
+  // wrong version causes WA to immediately close the connection.
+  const { version } = await fetchLatestBaileysVersion();
+  console.log('[WA] Using WA version:', version.join('.'));
 
   const sock = makeWASocket({
     version,
     logger,
     auth: state,
     printQRInTerminal: false,
-    browser: ['BugBotPro', 'Chrome', '122.0'],
+    // Standard Ubuntu Chrome user-agent — custom names get flagged by WA
+    browser: Browsers.ubuntu('Chrome'),
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 60000,
     generateHighQualityLinkPreview: false,
     markOnlineOnConnect: false,
+    // Prevent WA from seeing us as a bot by using the same keep-alive as WA Web
+    keepAliveIntervalMs: 25000,
   });
 
   waClients[userId] = {
@@ -90,7 +88,7 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
     const client = waClients[userId];
     if (!client) return;
 
-    // QR mode only — in pair code mode we suppress the QR
+    // In QR mode only — suppress QR when doing pair code
     if (qr && !usePairCode) {
       client.qr = qr;
       client.status = 'qr';
@@ -106,9 +104,9 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
     }
 
     if (connection === 'close') {
-      const code = lastDisconnect?.error
+      const statusCode = lastDisconnect?.error
         ? new Boom(lastDisconnect.error).output?.statusCode : 0;
-      const loggedOut = code === DisconnectReason.loggedOut;
+      const loggedOut = statusCode === DisconnectReason.loggedOut;
 
       if (loggedOut) {
         clearSession();
@@ -116,10 +114,10 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
         console.log('[WA] Logged out, session cleared:', userId);
       } else {
         client.status = 'reconnecting';
-        console.log('[WA] Disconnected (code', code, '), retrying in 5s:', userId);
+        console.log('[WA] Disconnected (code', statusCode, '), retrying in 5s:', userId);
         setTimeout(() => {
           if (waClients[userId]?.status === 'reconnecting') {
-            connectUser(userId, { usePairCode: false });
+            connectUser(userId, { usePairCode: false }).catch(() => {});
           }
         }, 5000);
       }
@@ -127,31 +125,31 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
   });
 
   // ── PAIR CODE ─────────────────────────────────────────────────────────────
-  // Await requestPairingCode here (not fire-and-forget).
-  // Baileys internally waits for the noise handshake before sending the IQ,
-  // so we don't need any explicit delay or event-handler trick.
-  // A 25-second timeout keeps us within Heroku's 30-second HTTP limit.
+  // requestPairingCode internally waits for the WA noise handshake via
+  // waitForConnection(), so calling it right after makeWASocket is correct.
+  // We await it so the route gets the code synchronously in the response.
   if (usePairCode && phone) {
     const cleanPhone = String(phone).replace(/[^0-9]/g, '');
-    console.log('[WA] requestPairingCode for', cleanPhone, userId);
+    console.log('[WA] Requesting pair code for', cleanPhone, '— userId:', userId);
     try {
+      // 25s keeps us within Heroku's 30s HTTP timeout
       const code = await Promise.race([
         sock.requestPairingCode(cleanPhone),
         new Promise((_, rej) =>
-          setTimeout(() => rej(new Error('Pair code timed out — check phone number and retry')), 25000)
+          setTimeout(() => rej(new Error('Pair code request timed out — please retry')), 25000)
         ),
       ]);
       if (waClients[userId]) {
         waClients[userId].pairCode = code;
-        console.log('[WA] Pair code ready:', code, 'for', userId);
+        console.log('[WA] Pair code:', code, '— userId:', userId);
       }
     } catch (e) {
-      console.error('[WA] Pair code error for', userId, ':', e.message);
+      console.error('[WA] Pair code error:', e.message, '— userId:', userId);
       if (waClients[userId]) {
         waClients[userId].pairCodeError = e.message;
         waClients[userId].status = 'error';
       }
-      throw e; // bubble up so the route can return a proper error
+      throw e;
     }
   }
   // ─────────────────────────────────────────────────────────────────────────
@@ -166,7 +164,7 @@ function disconnectUser(userId) {
   delete waClients[userId];
   const { clearSession } = useJsonAuthState(userId);
   clearSession();
-  console.log('[WA] Session cleared for:', userId);
+  console.log('[WA] Session cleared:', userId);
 }
 
 async function sendWAMessage(userId, jid, content) {
@@ -183,7 +181,7 @@ async function blockJid(userId, jid) {
 
 async function restoreAllSessions() {
   const userIds = listStoredSessions();
-  console.log('[WA] Restoring', userIds.length, 'saved sessions...');
+  console.log('[WA] Restoring', userIds.length, 'sessions...');
   for (const uid of userIds) {
     try {
       await connectUser(uid, { usePairCode: false });
