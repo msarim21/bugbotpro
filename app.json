@@ -1,27 +1,18 @@
 {
     "name": "BugBotPro",
     "description": "WhatsApp Web Dashboard",
-    "keywords": ["whatsapp", "nodejs"],
-    "repository": "https://github.com/msarim21/bugbotpro",
     "env": {
       "JWT_SECRET": {
-        "description": "Secret key for login sessions (auto-generated, do not change)",
+        "description": "Auto-generated login secret",
         "generator": "secret"
       },
       "NPM_CONFIG_PRODUCTION": {
-        "description": "Must be false so React frontend builds",
         "value": "false"
       }
     },
     "formation": {
-      "web": {
-        "quantity": 1,
-        "size": "eco"
-      }
+      "web": { "quantity": 1, "size": "eco" }
     },
-    "buildpacks": [
-      { "url": "heroku/nodejs" }
-    ],
-    "stack": "heroku-22"
+    "buildpacks": [{ "url": "heroku/nodejs" }]
   }
   
