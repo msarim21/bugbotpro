@@ -1,15 +1,43 @@
 <!doctype html>
   <html lang="en">
-    <head>
-      <meta charset="UTF-8" />
-      <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>BugBotPro — Telegram WhatsApp Bot</title>
-      <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-    </head>
-    <body>
-      <div id="root"></div>
-      <script type="module" src="/src/main.jsx"></script>
-    </body>
+  <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BugBotPro</title>
+  <style>
+  html,body{margin:0;padding:0;height:100%;background:#0a0f1e}
+  #root-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;color:#22d3ee;font-family:system-ui,sans-serif}
+  #root-loading h1{margin:0 0 10px;font-size:2rem}
+  #root-loading p{margin:0;color:#94a3b8;font-size:0.9rem}
+  #root-loading .dots{display:flex;gap:6px;margin-top:16px}
+  #root-loading .dot{width:8px;height:8px;background:#22d3ee;border-radius:50%;animation:bounce 1.4s infinite ease-in-out}
+  #root-loading .dot:nth-child(2){animation-delay:.2s}
+  #root-loading .dot:nth-child(3){animation-delay:.4s}
+  @keyframes bounce{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}
+  .noscript-box{padding:20px;background:#7f1d1d;color:#fee2e2;text-align:center;font-family:system-ui}
+  </style>
+  <script>
+  // Pre-flight: if JS doesn't load in 15s, show timeout message
+  window._appStart=Date.now();
+  setTimeout(function(){
+    var el=document.getElementById('root-loading');
+    if(el&&el.style.display!=='none'){
+      el.innerHTML='<h1 style=color:#f87171>⚠️ Load Timeout</h1><p style=color:#94a3b8>App failed to start.<br>Check console (F12 → Console)</p>';
+    }
+  },15000);
+  // Log that HTML parsed successfully
+  console.log('[HTML] Parsed OK');
+  </script>
+  </head>
+  <body>
+  <noscript><div class="noscript-box"><h1>JavaScript Required</h1><p>BugBotPro requires JavaScript. Please enable it in your browser settings.</p></div></noscript>
+  <div id="root">
+    <div id="root-loading">
+      <h1>⚡ BugBotPro</h1>
+      <p>Loading dashboard...</p>
+      <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.jsx"></script>
+  </body>
   </html>
-  
