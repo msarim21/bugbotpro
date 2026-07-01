@@ -10,12 +10,11 @@ const pino = require('pino');
 const { useJsonAuthState, listStoredSessions } = require('./session-store');
 
 const logger = pino({ level: 'silent' });
-
 const waClients = {};
 
 function getStatus(userId) {
   const c = waClients[userId];
-  if (!c) return { connected: false, status: 'disconnected', phone: null, qr: null, pairCode: null };
+  if (!c) return { connected: false, status: 'disconnected', phone: null, qr: null, pairCode: null, pairCodeError: null };
   return {
     connected: c.status === 'open',
     status: c.status || 'connecting',
@@ -33,21 +32,36 @@ function getAllSessions() {
 }
 
 async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
+  // Kill existing socket
   if (waClients[userId]?.sock) {
     try { waClients[userId].sock.end(); } catch (_) {}
     delete waClients[userId];
   }
 
-  const { state, saveCreds, clearSession, hasExistingSession } = useJsonAuthState(userId);
+  const { state, saveCreds, clearSession } = useJsonAuthState(userId);
 
-  if (!state.creds || !state.creds.noiseKey) {
-    try {
-      state.creds = initAuthCreds();
-      await saveCreds();
-    } catch (_) {}
+  // If requesting a pair code — always start with a clean session
+  // so Baileys never sees a stale creds.registered = true
+  if (usePairCode && phone) {
+    clearSession();
+    state.creds = initAuthCreds();
+    await saveCreds();
+  } else if (!state.creds || !state.creds.noiseKey) {
+    state.creds = initAuthCreds();
+    await saveCreds();
   }
 
-  const { version } = await fetchLatestBaileysVersion();
+  // Fetch WA version with fallback so Heroku network timeouts don't block startup
+  let version;
+  try {
+    const result = await Promise.race([
+      fetchLatestBaileysVersion(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('version fetch timeout')), 8000)),
+    ]);
+    version = result.version;
+  } catch (_) {
+    version = [2, 3000, 1015920675]; // safe fallback
+  }
 
   const sock = makeWASocket({
     version,
@@ -70,39 +84,13 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
     pairCodeError: null,
   };
 
-  // ─── PAIR CODE ───────────────────────────────────────────────────────────────
-  // Must be called right after makeWASocket — Baileys internally waits for the
-  // WA-server handshake before sending the pair-code IQ, so no setTimeout needed.
-  // This is the ONLY correct place to call it; calling it inside connection.update
-  // is too late and the request races against the QR exchange.
-  if (usePairCode && phone && !hasExistingSession()) {
-    const cleanPhone = String(phone).replace(/[^0-9]/g, '');
-    console.log('[WA] Requesting pair code for phone:', cleanPhone, 'userId:', userId);
-
-    sock.requestPairingCode(cleanPhone)
-      .then(code => {
-        if (waClients[userId]) {
-          waClients[userId].pairCode = code;
-          waClients[userId].pairCodeError = null;
-          console.log('[WA] Pair code generated:', code, 'for userId:', userId);
-        }
-      })
-      .catch(err => {
-        console.error('[WA] Pair code failed for', userId, ':', err.message);
-        if (waClients[userId]) {
-          waClients[userId].pairCodeError = err.message;
-        }
-      });
-  }
-  // ─────────────────────────────────────────────────────────────────────────────
-
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
     const client = waClients[userId];
     if (!client) return;
 
-    // In pair-code mode we never display the QR — just keep status as 'connecting'
+    // QR mode only — in pair code mode we suppress the QR
     if (qr && !usePairCode) {
       client.qr = qr;
       client.status = 'qr';
@@ -118,9 +106,9 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
     }
 
     if (connection === 'close') {
-      const statusCode = lastDisconnect?.error
+      const code = lastDisconnect?.error
         ? new Boom(lastDisconnect.error).output?.statusCode : 0;
-      const loggedOut = statusCode === DisconnectReason.loggedOut;
+      const loggedOut = code === DisconnectReason.loggedOut;
 
       if (loggedOut) {
         clearSession();
@@ -128,7 +116,7 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
         console.log('[WA] Logged out, session cleared:', userId);
       } else {
         client.status = 'reconnecting';
-        console.log('[WA] Disconnected (code', statusCode, '), retrying in 5s for:', userId);
+        console.log('[WA] Disconnected (code', code, '), retrying in 5s:', userId);
         setTimeout(() => {
           if (waClients[userId]?.status === 'reconnecting') {
             connectUser(userId, { usePairCode: false });
@@ -137,6 +125,36 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
       }
     }
   });
+
+  // ── PAIR CODE ─────────────────────────────────────────────────────────────
+  // Await requestPairingCode here (not fire-and-forget).
+  // Baileys internally waits for the noise handshake before sending the IQ,
+  // so we don't need any explicit delay or event-handler trick.
+  // A 25-second timeout keeps us within Heroku's 30-second HTTP limit.
+  if (usePairCode && phone) {
+    const cleanPhone = String(phone).replace(/[^0-9]/g, '');
+    console.log('[WA] requestPairingCode for', cleanPhone, userId);
+    try {
+      const code = await Promise.race([
+        sock.requestPairingCode(cleanPhone),
+        new Promise((_, rej) =>
+          setTimeout(() => rej(new Error('Pair code timed out — check phone number and retry')), 25000)
+        ),
+      ]);
+      if (waClients[userId]) {
+        waClients[userId].pairCode = code;
+        console.log('[WA] Pair code ready:', code, 'for', userId);
+      }
+    } catch (e) {
+      console.error('[WA] Pair code error for', userId, ':', e.message);
+      if (waClients[userId]) {
+        waClients[userId].pairCodeError = e.message;
+        waClients[userId].status = 'error';
+      }
+      throw e; // bubble up so the route can return a proper error
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   return sock;
 }
