@@ -37,17 +37,36 @@
       if (!req.path.startsWith('/api')) res.sendFile(path.join(clientBuild, 'index.html'));
     });
   } else {
-    app.get('/', (_, res) => res.json({ message: 'BugBotPro API — build client first', status: 'api-only' }));
+    app.get('/', (_, res) => res.send(`<!DOCTYPE html>
+  <html><head><title>BugBotPro</title><style>
+  body{background:#000;color:#0f0;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+  .loader{text-align:center}
+  .dots{display:flex;gap:8px;justify-content:center;margin:20px 0}
+  .dot{width:10px;height:10px;background:#0f0;border-radius:50%;animation:pulse 1s infinite}
+  .dot:nth-child(2){animation-delay:.2s}
+  .dot:nth-child(3){animation-delay:.4s}
+  @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+  p{font-size:14px;opacity:.6}
+  </style></head><body>
+  <div class="loader"><h1>⚡ BugBotPro</h1><div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div><p>Starting up... dyno is waking up ⏰</p><p><small>Heroku Eco — first load may take 10-15 seconds</small></p></div>
+  </body></html>`));
   }
 
   const { ensureAdminExists } = require('./db-service');
   ensureAdminExists();
 
-  // Restore WA sessions from disk on startup
+  // Restore WA sessions
   const wa = require('./whatsapp');
-  wa.restoreAllSessions().then(() => {
-    console.log('[WA] Session restore attempt complete');
-  }).catch(e => console.error('[WA] Restore error:', e.message));
+  wa.restoreAllSessions().catch(e => console.error('[WA] Restore error:', e.message));
+
+  // ─── Keep Alive: ping self every 10 min to prevent Eco dyno sleep ───
+  const APP_URL = process.env.APP_URL || (process.env.HEROKU_APP_NAME ? `https://${process.env.HEROKU_APP_NAME}.herokuapp.com` : null);
+  if (APP_URL) {
+    setInterval(() => {
+      fetch(`${APP_URL}/api/health`).then(() => console.log('[KEEPALIVE] Ping sent')).catch(() => {});
+    }, 10 * 60 * 1000); // every 10 minutes
+    console.log('[KEEPALIVE] Auto-ping enabled:', APP_URL);
+  }
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[SERVER] BugBotPro Web Panel running on port ${PORT}`);
