@@ -1,33 +1,42 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-  import axios from 'axios';
+'use strict';
+  import React, { createContext, useContext, useState, useEffect } from 'react';
 
   const AuthContext = createContext(null);
+  const API = '/api';
+
+  function getToken() { return localStorage.getItem('bbp_token'); }
+
+  async function apiReq(method, path, body) {
+    const opts = { method, headers: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) } };
+    if (body) opts.body = JSON.stringify(body);
+    const res = await fetch(API + path, opts);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+    return data;
+  }
 
   export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    const getToken = () => localStorage.getItem('bbp_token');
-    const getHeaders = () => ({ Authorization: `Bearer ${getToken()}` });
-
     useEffect(() => {
       const token = getToken();
       if (!token) { setLoading(false); return; }
-      axios.get('/api/auth/me', { headers: getHeaders() })
-        .then(r => setUser(r.data.user))
+      apiReq('GET', '/auth/me')
+        .then(d => setUser(d.user))
         .catch(() => localStorage.removeItem('bbp_token'))
         .finally(() => setLoading(false));
     }, []);
 
     const login = async (email, password) => {
-      const { data } = await axios.post('/api/auth/login', { email, password });
+      const data = await apiReq('POST', '/auth/login', { email, password });
       localStorage.setItem('bbp_token', data.token);
       setUser(data.user);
       return data.user;
     };
 
     const signup = async (username, email, password) => {
-      const { data } = await axios.post('/api/auth/signup', { username, email, password });
+      const data = await apiReq('POST', '/auth/signup', { username, email, password });
       localStorage.setItem('bbp_token', data.token);
       setUser(data.user);
       return data.user;
@@ -39,7 +48,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
     };
 
     return (
-      <AuthContext.Provider value={{ user, loading, login, signup, logout, getHeaders }}>
+      <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
         {children}
       </AuthContext.Provider>
     );
