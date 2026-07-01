@@ -4,7 +4,6 @@ const {
   DisconnectReason,
   fetchLatestBaileysVersion,
   initAuthCreds,
-  Browsers,
 } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const pino = require('pino');
@@ -33,7 +32,6 @@ function getAllSessions() {
 }
 
 async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
-  // Kill any existing socket
   if (waClients[userId]?.sock) {
     try { waClients[userId].sock.end(); } catch (_) {}
     delete waClients[userId];
@@ -41,8 +39,8 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
 
   const { state, saveCreds, clearSession } = useJsonAuthState(userId);
 
-  // Pair code always starts with a clean slate so creds.registered is never
-  // left over from a previous failed attempt (which would make requestPairingCode throw).
+  // Pair code always needs a completely fresh session.
+  // A stale creds.registered=true causes requestPairingCode to throw silently.
   if (usePairCode && phone) {
     clearSession();
     state.creds = initAuthCreds();
@@ -52,24 +50,23 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
     await saveCreds();
   }
 
-  // fetchLatestBaileysVersion already falls back to a bundled safe version on
-  // network failure — do NOT add a custom timeout+fallback here, because a
-  // wrong version causes WA to immediately close the connection.
+  // fetchLatestBaileysVersion handles its own errors and falls back to the
+  // bundled safe version — do NOT wrap it with a custom timeout+fallback because
+  // a wrong WA version causes an immediate "Connection Closed" from WA servers.
   const { version } = await fetchLatestBaileysVersion();
-  console.log('[WA] Using WA version:', version.join('.'));
+  console.log('[WA] version:', version.join('.'), 'userId:', userId);
 
   const sock = makeWASocket({
     version,
     logger,
     auth: state,
     printQRInTerminal: false,
-    // Standard Ubuntu Chrome user-agent — custom names get flagged by WA
-    browser: Browsers.ubuntu('Chrome'),
+    // Standard Ubuntu/Chrome browser string — custom names get flagged by WA
+    browser: ['Ubuntu', 'Chrome', '20.0.04'],
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 60000,
     generateHighQualityLinkPreview: false,
     markOnlineOnConnect: false,
-    // Prevent WA from seeing us as a bot by using the same keep-alive as WA Web
     keepAliveIntervalMs: 25000,
   });
 
@@ -88,7 +85,6 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
     const client = waClients[userId];
     if (!client) return;
 
-    // In QR mode only — suppress QR when doing pair code
     if (qr && !usePairCode) {
       client.qr = qr;
       client.status = 'qr';
@@ -125,14 +121,15 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
   });
 
   // ── PAIR CODE ─────────────────────────────────────────────────────────────
-  // requestPairingCode internally waits for the WA noise handshake via
-  // waitForConnection(), so calling it right after makeWASocket is correct.
-  // We await it so the route gets the code synchronously in the response.
+  // requestPairingCode internally awaits the WA noise handshake via
+  // waitForConnection() — calling it right after makeWASocket is the correct
+  // approach per Baileys docs. We await it here so the HTTP route returns the
+  // code synchronously in its response (no polling needed).
+  // 25 s timeout stays inside Heroku's 30 s H12 request limit.
   if (usePairCode && phone) {
     const cleanPhone = String(phone).replace(/[^0-9]/g, '');
-    console.log('[WA] Requesting pair code for', cleanPhone, '— userId:', userId);
+    console.log('[WA] requestPairingCode for', cleanPhone, 'userId:', userId);
     try {
-      // 25s keeps us within Heroku's 30s HTTP timeout
       const code = await Promise.race([
         sock.requestPairingCode(cleanPhone),
         new Promise((_, rej) =>
@@ -141,10 +138,10 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
       ]);
       if (waClients[userId]) {
         waClients[userId].pairCode = code;
-        console.log('[WA] Pair code:', code, '— userId:', userId);
+        console.log('[WA] Pair code:', code, 'userId:', userId);
       }
     } catch (e) {
-      console.error('[WA] Pair code error:', e.message, '— userId:', userId);
+      console.error('[WA] Pair code error:', e.message, 'userId:', userId);
       if (waClients[userId]) {
         waClients[userId].pairCodeError = e.message;
         waClients[userId].status = 'error';
