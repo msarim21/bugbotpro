@@ -4,24 +4,24 @@ import React, { useState } from 'react';
   import toast from 'react-hot-toast';
 
   export default function Login() {
-    const { login } = useAuth();
-    const nav = useNavigate();
     const [form, setForm] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
+    const { login } = useAuth();
+    const navigate = useNavigate();
 
-    async function handleSubmit(e) {
+    const handleSubmit = async (e) => {
       e.preventDefault();
       setLoading(true);
       try {
-        await login(form.email, form.password);
-        toast.success('Login ho gaya!');
-        nav('/dashboard');
+        const user = await login(form.email, form.password);
+        toast.success('Login successful!');
+        navigate(user.role === 'admin' ? '/admin' : '/dashboard');
       } catch (err) {
-        toast.error(err.message || 'Login failed');
+        toast.error(err.message || 'Login failed.');
       } finally {
         setLoading(false);
       }
-    }
+    };
 
     return (
       <div className="min-h-screen bg-[#0a0f1e] flex items-center justify-center px-4">
