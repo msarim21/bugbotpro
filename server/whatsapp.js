@@ -37,31 +37,31 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
     delete waClients[userId];
   }
 
+  // For pair code: clear old session FIRST, then get fresh state.
+  // This ensures creds.registered is never stuck true from a previous attempt.
+  if (usePairCode && phone) {
+    const tmp = useJsonAuthState(userId);
+    tmp.clearSession();
+  }
+
+  // Load state (fresh/empty if we just cleared above)
   const { state, saveCreds, clearSession } = useJsonAuthState(userId);
 
-  // Pair code always needs a completely fresh session.
-  // A stale creds.registered=true causes requestPairingCode to throw silently.
-  if (usePairCode && phone) {
-    clearSession();
-    state.creds = initAuthCreds();
-    await saveCreds();
-  } else if (!state.creds || !state.creds.noiseKey) {
+  // Initialize creds if missing — the getter/setter in session-store keeps
+  // state.creds and the internal closure in sync, so this is now safe.
+  if (!state.creds || !state.creds.noiseKey) {
     state.creds = initAuthCreds();
     await saveCreds();
   }
 
-  // fetchLatestBaileysVersion handles its own errors and falls back to the
-  // bundled safe version — do NOT wrap it with a custom timeout+fallback because
-  // a wrong WA version causes an immediate "Connection Closed" from WA servers.
   const { version } = await fetchLatestBaileysVersion();
-  console.log('[WA] version:', version.join('.'), 'userId:', userId);
+  console.log('[WA] version', version.join('.'), 'userId:', userId);
 
   const sock = makeWASocket({
     version,
     logger,
     auth: state,
     printQRInTerminal: false,
-    // Standard Ubuntu/Chrome browser string — custom names get flagged by WA
     browser: ['Ubuntu', 'Chrome', '20.0.04'],
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 60000,
@@ -102,15 +102,14 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error
         ? new Boom(lastDisconnect.error).output?.statusCode : 0;
-      const loggedOut = statusCode === DisconnectReason.loggedOut;
 
-      if (loggedOut) {
+      if (statusCode === DisconnectReason.loggedOut) {
         clearSession();
         delete waClients[userId];
-        console.log('[WA] Logged out, session cleared:', userId);
+        console.log('[WA] Logged out:', userId);
       } else {
         client.status = 'reconnecting';
-        console.log('[WA] Disconnected (code', statusCode, '), retrying in 5s:', userId);
+        console.log('[WA] Disconnected code', statusCode, '— retrying in 5s:', userId);
         setTimeout(() => {
           if (waClients[userId]?.status === 'reconnecting') {
             connectUser(userId, { usePairCode: false }).catch(() => {});
@@ -121,11 +120,9 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
   });
 
   // ── PAIR CODE ─────────────────────────────────────────────────────────────
-  // requestPairingCode internally awaits the WA noise handshake via
-  // waitForConnection() — calling it right after makeWASocket is the correct
-  // approach per Baileys docs. We await it here so the HTTP route returns the
-  // code synchronously in its response (no polling needed).
-  // 25 s timeout stays inside Heroku's 30 s H12 request limit.
+  // requestPairingCode() calls waitForConnection() internally — calling it
+  // immediately after makeWASocket is correct per Baileys docs.
+  // We await it so the HTTP response includes the code (no client polling needed).
   if (usePairCode && phone) {
     const cleanPhone = String(phone).replace(/[^0-9]/g, '');
     console.log('[WA] requestPairingCode for', cleanPhone, 'userId:', userId);
@@ -133,7 +130,7 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
       const code = await Promise.race([
         sock.requestPairingCode(cleanPhone),
         new Promise((_, rej) =>
-          setTimeout(() => rej(new Error('Pair code request timed out — please retry')), 25000)
+          setTimeout(() => rej(new Error('Timed out — please retry')), 25000)
         ),
       ]);
       if (waClients[userId]) {
@@ -149,7 +146,6 @@ async function connectUser(userId, { usePairCode = false, phone = null } = {}) {
       throw e;
     }
   }
-  // ─────────────────────────────────────────────────────────────────────────
 
   return sock;
 }
